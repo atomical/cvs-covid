@@ -3,33 +3,25 @@
 require "dotenv"
 require "open-uri"
 require "json"
-require "mail"
+require "terminal-notifier"
 
 Dotenv.load
 
-URL = "https://www.cvs.com/immunizations/covid-19-vaccine.vaccine-status.VA.json?vaccineinfo"
+STATE = ENV.fetch("STATE")
+URL = "https://www.cvs.com/immunizations/covid-19-vaccine.vaccine-status.#{STATE}.json?vaccineinfo"
 REFERRER = "https://www.cvs.com/immunizations/covid-19-vaccine"
 
 puts "Starting CVS COVID vaccine checker"
 puts ""
 
+TerminalNotifier.notify("Starting!")
+
 while true do
   puts "Checking at #{Time.now}"
 
-  Mail.defaults do
-    delivery_method(
-      :smtp,
-      address: "smtp.gmail.com",
-      port: 587,
-      user_name: ENV.fetch("SMTP_USERNAME"),
-      password: ENV.fetch("SMTP_PASSWORD"),
-      enable_ssl: true
-    )
-  end
-
   open(URL, "Referer" => REFERRER) do |f|
     payload = JSON.parse(f.read)
-    locations = payload["responsePayloadData"]["data"]["VA"]
+    locations = payload["responsePayloadData"]["data"][STATE]
     puts "Locations reported: #{locations.size}"
 
     available = locations.select { |location| location["status"] !~ /booked/i }
@@ -40,17 +32,14 @@ while true do
       puts "Availabilities!"
       puts cities
 
-      mail = Mail.deliver do
-        from ENV.fetch("FROM_EMAIL")
-        to ENV.fetch("TO_EMAIL")
-        subject "CVS availabilities"
-        body cities.join("\n")
-      end
+      TerminalNotifier.notify("Availabilities!")
+      exit(0)
+
     else
       puts "Nothing found :("
     end
   end
 
   puts "-----\n"
-  sleep 60
+  sleep 10
 end
